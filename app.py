@@ -87,22 +87,27 @@ def recommend_tuned(movie_name, num_recommendations=6):
         ids.append(movies.iloc[index]["movie_id"])
 
 return names, ids
- names, ids = recommend_tuned(selected_movie_name, 6)
+if st.button("✨ Find Similar Movies", type="primary", use_container_width=True):
 
-cols = st.columns(3)
+    names, ids = recommend_tuned(selected_movie_name, 6)
 
-for i in range(len(names)):
+    if names and ids:
 
-    with cols[i % 3]:
+        cols = st.columns(3)
 
-        poster = fetch_poster(ids[i])
+        for i in range(len(names)):
 
-        st.image(
-            poster,
-            use_container_width=True
-        )
+            with cols[i % 3]:
 
-        st.markdown(f"### {names[i]}")
+                poster = fetch_poster(ids[i])
+
+                if poster:
+                    st.image(
+                        poster,
+                        use_container_width=True
+                    )
+
+                st.markdown(f"### {names[i]}")
 
 
 st.set_page_config(
