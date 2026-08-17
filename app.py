@@ -1,77 +1,368 @@
 import streamlit as st
 import pandas as pd
 import pickle
+from sklearn.metrics.pairwise import cosine_similarity
 
-st.set_page_config(page_title="CineMatch AI Engine", page_icon="🎬", layout="wide")
+st.set_page_config(
+    page_title="CineMatch AI",
+    page_icon="🎬",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 st.markdown("""
-    <style>
-    .main-title { font-size: 44px !important; font-weight: 800; color: #E50914; text-align: center; margin-bottom: 5px; }
-    .sub-title { font-size: 18px !important; text-align: center; color: #8c8c8c; margin-bottom: 35px; }
-    .card-title { font-size: 20px !important; font-weight: 700; color: #f5f5f7; margin-bottom: 10px; }
-    .card-score { font-size: 14px !important; color: #00adb5; font-weight: 600; }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
+.stApp {
+    background: #0b0b0f;
+    color: #f5f5f5;
+}
 
-st.markdown('<p class="main-title">🎬 CineMatch AI Dashboard</p>', unsafe_allow_html=True)
-st.markdown('<p class="sub-title">Hyperparameter-tuned semantic item vector matching pipeline</p>', unsafe_allow_html=True)
+#MainMenu {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
+
+header {
+    visibility: hidden;
+}
+
+.main-title {
+    font-size: 52px;
+    font-weight: 900;
+    text-align: center;
+    margin-top: 20px;
+    margin-bottom: 0px;
+    color: #ffffff;
+}
+
+.main-title span {
+    color: #e50914;
+}
+
+.sub-title {
+    text-align: center;
+    color: #9b9ba3;
+    font-size: 18px;
+    margin-bottom: 40px;
+}
+
+.hero {
+    padding: 35px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #17171d, #101014);
+    border: 1px solid #292930;
+    margin-bottom: 30px;
+}
+
+.hero-title {
+    font-size: 32px;
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+
+.hero-text {
+    color: #a8a8b0;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+.movie-card {
+    background: #17171d;
+    border: 1px solid #292930;
+    border-radius: 18px;
+    padding: 22px;
+    min-height: 190px;
+    margin-bottom: 20px;
+    transition: 0.3s;
+}
+
+.movie-card:hover {
+    border-color: #e50914;
+    transform: translateY(-3px);
+}
+
+.rank {
+    color: #e50914;
+    font-size: 14px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.movie-title {
+    color: #ffffff;
+    font-size: 21px;
+    font-weight: 800;
+    margin-top: 10px;
+    margin-bottom: 15px;
+}
+
+.score {
+    color: #00d4aa;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.score-bar {
+    height: 6px;
+    background: #303038;
+    border-radius: 10px;
+    margin-top: 8px;
+}
+
+.section-title {
+    font-size: 25px;
+    font-weight: 800;
+    margin-top: 25px;
+    margin-bottom: 20px;
+}
+
+[data-testid="stSidebar"] {
+    background: #111116;
+    border-right: 1px solid #292930;
+}
+
+.stButton > button {
+    border-radius: 12px;
+    font-weight: 700;
+    height: 48px;
+}
+</style>
+""", unsafe_allow_html=True)
 
 @st.cache_resource
 def load_ml_assets():
-    with open('movie_list.pkl', 'rb') as f:
+    with open("movie_list.pkl", "rb") as f:
         movies_df = pickle.load(f)
-    with open('similarity_tuned.pkl', 'rb') as f:
-        similarity_matrix = pickle.load(f)
-    return movies_df, similarity_matrix
+
+    with open("cv_tuned.pkl", "rb") as f:
+        vectorizer = pickle.load(f)
+
+    return movies_df, vectorizer
 
 try:
-    movies, similarity = load_ml_assets()
-    st.sidebar.success("🚀 AI Core Matrix Active")
+    movies, cv = load_ml_assets()
+
+    movies = movies.reset_index(drop=True)
+    movies["tags"] = movies["tags"].fillna("").astype(str)
+
+    movie_vectors = cv.transform(movies["tags"])
+
+    st.sidebar.success("🟢 AI Engine Online")
+
 except Exception as e:
-    st.error(f"Asset extraction boundary alert: {e}. Check if .pkl files exist in this folder.")
+    st.error(
+        f"""
+        ### ❌ Model Loading Error
 
-st.write("### 🎛️ Configure Inference Controls")
-input_col1, input_col2 = st.columns(2)
+        {e}
 
-with input_col1:
-    selected_movie = st.selectbox(
-        "🍿 What movie did you recently enjoy?", 
-        options=movies['title'].values,
-        help="Type or select a title from the dataset matrix"
+        Make sure these files are in the same folder as `app.py`:
+
+        - `movie_list.pkl`
+        - `cv_tuned.pkl`
+        """
     )
+    st.stop()
 
-with input_col2:
+with st.sidebar:
+    st.markdown("## 🎬 CineMatch")
+    st.caption("AI Movie Recommendation Engine")
+
+    st.divider()
+
+    st.markdown("### ⚙️ Recommendation Settings")
+
     num_recs = st.slider(
-        "Target output results:", 
-        min_value=3, 
-        max_value=12, 
+        "Number of recommendations",
+        min_value=3,
+        max_value=12,
         value=6
     )
 
-st.markdown("<br>", unsafe_allow_html=True)
+    st.divider()
 
-if st.button("✨ Generate My Recommendations Matrix", type="primary", use_container_width=True):
-    tab1, tab2 = st.tabs(["🎯 Top Matches Grid", "📊 Optimization Analytics"])
-    
-    with tab1:
+    st.markdown("### 🧠 Model Information")
+
+    st.write(f"🎞️ Movies: **{len(movies):,}**")
+    st.write(f"🔢 Features: **{movie_vectors.shape[1]:,}**")
+    st.write("🤖 Model: **CountVectorizer + Cosine Similarity**")
+
+    st.divider()
+
+    st.caption(
+        "CineMatch recommends movies based on similarity between "
+        "movie metadata/tags."
+    )
+
+st.markdown(
+    '<div class="main-title">🎬 Cine<span>Match</span> AI</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="sub-title">'
+    'Discover movies similar to the ones you already love.'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown("""
+<div class="hero">
+    <div class="hero-title">
+        🍿 Find your next favorite movie
+    </div>
+
+    <div class="hero-text">
+        Select a movie you enjoyed and let CineMatch analyze
+        thousands of movie profiles to find the closest matches.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown(
+    '<div class="section-title">🔎 What did you enjoy?</div>',
+    unsafe_allow_html=True
+)
+
+selected_movie = st.selectbox(
+    "Select a movie",
+    movies["title"].tolist(),
+    index=0,
+    label_visibility="collapsed"
+)
+
+generate = st.button(
+    "✨ Find Similar Movies",
+    type="primary",
+    use_container_width=True
+)
+
+if generate:
+    with st.spinner("🧠 Analyzing movie similarity..."):
         try:
-            movie_index = movies[movies['title'] == selected_movie].index[0]
-            similarity_scores = list(enumerate(similarity[movie_index]))
-            sorted_recommendations = sorted(similarity_scores, key=lambda x: x[1], reverse=True)[1:num_recs+1]
-            
-            st.write("#### Optimized Results Matrix:")
-            grid_cols = st.columns(3)
-            
-            for rank, (index, score) in enumerate(sorted_recommendations):
-                recommended_title = movies.iloc[index]['title']
-                with grid_cols[rank % 3]:
-                    st.info(f"**Rank #{rank+1} Match**\n\n### {recommended_title}\n\nMatch Confidence: `{score:.2%}`")
-                    
-        except Exception as err:
-            st.error(f"Prediction structural fault: {err}")
-            
-    with tab2:
-        st.markdown("### 🛠️ Architecture Verification Profile")
-        st.write(f"**Target Analyzed Subject:** {selected_movie}")
-        st.write(f"**Vector Reference Length Evaluated:** {len(similarity)} records analyzed")
-        st.caption("Information Grounding Note: These recommendations are surfaced by querying an optimized cosine distance matrix topology compiled from your tuned hyperparameter settings.")
+            movie_index = movies.index[
+                movies["title"] == selected_movie
+            ][0]
+
+            selected_vector = movie_vectors[movie_index]
+
+            similarity_scores = cosine_similarity(
+                selected_vector,
+                movie_vectors
+            ).flatten()
+
+            similarity_scores[movie_index] = -1
+
+            top_indices = similarity_scores.argsort()[::-1][:num_recs]
+
+            recommendations = []
+
+            for idx in top_indices:
+                recommendations.append({
+                    "title": movies.iloc[idx]["title"],
+                    "score": similarity_scores[idx]
+                })
+
+            st.markdown(
+                f'<div class="section-title">'
+                f'🎯 Movies similar to "{selected_movie}"'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+            columns = st.columns(3)
+
+            for rank, movie in enumerate(recommendations):
+                score_percentage = movie["score"] * 100
+
+                with columns[rank % 3]:
+                    st.markdown(
+                        f"""
+                        <div class="movie-card">
+                            <div class="rank">
+                                #{rank + 1} Recommendation
+                            </div>
+
+                            <div class="movie-title">
+                                {movie["title"]}
+                            </div>
+
+                            <div class="score">
+                                Match Score: {score_percentage:.1f}%
+                            </div>
+
+                            <div class="score-bar">
+                                <div style="
+                                    width:{min(score_percentage, 100)}%;
+                                    height:6px;
+                                    border-radius:10px;
+                                    background:#00d4aa;
+                                "></div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+            st.divider()
+
+            st.markdown(
+                '<div class="section-title">'
+                '📊 Recommendation Analytics'
+                '</div>',
+                unsafe_allow_html=True
+            )
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric(
+                    "Movies Analyzed",
+                    f"{len(movies):,}"
+                )
+
+            with col2:
+                st.metric(
+                    "Features",
+                    f"{movie_vectors.shape[1]:,}"
+                )
+
+            with col3:
+                st.metric(
+                    "Recommendations",
+                    num_recs
+                )
+
+            with col4:
+                avg_score = sum(
+                    movie["score"]
+                    for movie in recommendations
+                ) / len(recommendations)
+
+                st.metric(
+                    "Average Match",
+                    f"{avg_score * 100:.1f}%"
+                )
+
+        except Exception as e:
+            st.error(f"❌ Recommendation engine error: {e}")
+
+st.markdown("<br><br>", unsafe_allow_html=True)
+
+st.markdown(
+    """
+    <div style="
+        text-align:center;
+        color:#666670;
+        padding:20px;
+        border-top:1px solid #222229;
+    ">
+        🎬 CineMatch AI &nbsp; • &nbsp;
+        Content-Based Movie Recommendation System
+    </div>
+    """,
+    unsafe_allow_html=True
+)
