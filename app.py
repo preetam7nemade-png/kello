@@ -86,7 +86,7 @@ def recommend_tuned(movie_name, num_recommendations=6):
         names.append(movies.iloc[index]["title"])
         ids.append(movies.iloc[index]["movie_id"])
 
-  return names, ids
+    return names, ids
 if st.button("✨ Find Similar Movies", type="primary", use_container_width=True):
 
     names, ids = recommend_tuned(selected_movie_name, 6)
