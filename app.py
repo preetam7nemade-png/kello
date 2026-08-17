@@ -2,6 +2,43 @@ import streamlit as st
 import pandas as pd
 import pickle
 from sklearn.metrics.pairwise import cosine_similarity
+import requests
+
+def fetch_poster(movie_id):
+ 
+    api_key = "YOUR_TMDB_API_KEY"
+    if api_key == "YOUR_TMDB_API_KEY":
+        print("Please replace 'YOUR_TMDB_API_KEY' with your actual TMDB API key.")
+        return None
+
+    # Construct the API request URL for movie details
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}&language=en-US"
+    try:
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
+        data = response.json()
+        poster_path = data.get('poster_path')
+        if poster_path:
+            # Construct the full URL for the poster image
+            return f"https://image.tmdb.org/t/p/w500/{poster_path}"
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching poster for movie ID {movie_id}: {e}")
+    return "https://via.placeholder.com/150" # Placeholder image if fetching fails
+selected_movie_name = 'Avatar'
+print(f"Recommendations for: {selected_movie_name}")
+names, ids = recommend_tuned(selected_movie_name)
+
+if names and ids:
+    for i in range(len(names)):
+        movie_name = names[i]
+        movie_id = ids[i]
+        poster_url = fetch_poster(movie_id)
+        print(f"  - {movie_name} (ID: {movie_id})")
+        print(f"    Poster URL: {poster_url}\n")
+else:
+    print("No recommendations found or an error occurred.")
+    
+
 
 st.set_page_config(
     page_title="CineMatch AI",
