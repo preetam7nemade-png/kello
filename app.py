@@ -4,112 +4,6 @@ import pickle
 from sklearn.metrics.pairwise import cosine_similarity
 import requests
 
-
-@st.cache_data(show_spinner=False)
-def fetch_poster(movie_id):
-
-    api_key = st.secrets["TMDB_API_KEY"]
-
-    url = f"https://api.themoviedb.org/3/movie/{movie_id}"
-
-    params = {
-        "api_key": api_key,
-        "language": "en-US"
-    }
-
-    try:
-        response = requests.get(
-            url,
-            params=params,
-            timeout=5
-        )
-
-        response.raise_for_status()
-
-        data = response.json()
-
-        poster_path = data.get("poster_path")
-
-        if poster_path:
-            return f"https://image.tmdb.org/t/p/w500{poster_path}"
-
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching poster for movie ID {movie_id}: {e}")
-
-    return "https://via.placeholder.com/500x750?text=Poster+Unavailable"
-
-@st.cache_resource
-def load_data():
-    with open("movie_list.pkl", "rb") as f:
-        movies = pickle.load(f)
-
-    with open("cv_tuned.pkl", "rb") as f:
-        cv = pickle.load(f)
-
-    movies = movies.reset_index(drop=True)
-    movies["tags"] = movies["tags"].fillna("").astype(str)
-
-    vectors = cv.transform(movies["tags"])
-
-    return movies, vectors
-
-
-movies, movie_vectors = load_data()
-
-
-def recommend_tuned(movie_name, num_recommendations=6):
-
-    matches = movies.index[
-        movies["title"].str.lower() == movie_name.lower()
-    ].tolist()
-
-    if not matches:
-        return [], []
-
-    movie_index = matches[0]
-
-    selected_vector = movie_vectors[movie_index]
-
-    scores = cosine_similarity(
-        selected_vector,
-        movie_vectors
-    ).flatten()
-
-    scores[movie_index] = -1
-
-    top_indices = scores.argsort()[::-1][:num_recommendations]
-
-    names = []
-    ids = []
-
-    for index in top_indices:
-        names.append(movies.iloc[index]["title"])
-        ids.append(movies.iloc[index]["movie_id"])
-
-    return names, ids
-if st.button("✨ Find Similar Movies", type="primary", use_container_width=True):
-
-    names, ids = recommend_tuned(selected_movie_name, 6)
-
-    if names and ids:
-
-        cols = st.columns(3)
-
-        for i in range(len(names)):
-
-            with cols[i % 3]:
-
-                poster = fetch_poster(ids[i])
-
-                if poster:
-                    st.image(
-                        poster,
-                        use_container_width=True
-                    )
-
-                st.markdown(f"### {names[i]}")
-
-
 st.set_page_config(
     page_title="CineMatch AI",
     page_icon="🎬",
@@ -119,6 +13,7 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+
 .stApp {
     background: #0b0b0f;
     color: #f5f5f5;
@@ -180,15 +75,13 @@ header {
     background: #17171d;
     border: 1px solid #292930;
     border-radius: 18px;
-    padding: 22px;
-    min-height: 190px;
+    padding: 18px;
+    min-height: 150px;
     margin-bottom: 20px;
-    transition: 0.3s;
 }
 
 .movie-card:hover {
     border-color: #e50914;
-    transform: translateY(-3px);
 }
 
 .rank {
@@ -236,46 +129,91 @@ header {
     font-weight: 700;
     height: 48px;
 }
+
 </style>
 """, unsafe_allow_html=True)
 
+
 @st.cache_resource
 def load_ml_assets():
+
     with open("movie_list.pkl", "rb") as f:
-        movies_df = pickle.load(f)
+        movies = pickle.load(f)
 
     with open("cv_tuned.pkl", "rb") as f:
-        vectorizer = pickle.load(f)
-
-    return movies_df, vectorizer
-
-try:
-    movies, cv = load_ml_assets()
+        cv = pickle.load(f)
 
     movies = movies.reset_index(drop=True)
     movies["tags"] = movies["tags"].fillna("").astype(str)
 
     movie_vectors = cv.transform(movies["tags"])
 
+    return movies, movie_vectors
+
+
+@st.cache_data(show_spinner=False)
+def fetch_poster(movie_id):
+
+    api_key = st.secrets["TMDB_API_KEY"]
+
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}"
+
+    params = {
+        "api_key": api_key,
+        "language": "en-US"
+    }
+
+    try:
+
+        response = requests.get(
+            url,
+            params=params,
+            timeout=5
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        poster_path = data.get("poster_path")
+
+        if poster_path:
+            return f"https://image.tmdb.org/t/p/w500{poster_path}"
+
+    except requests.exceptions.RequestException:
+        pass
+
+    return "https://via.placeholder.com/500x750?text=Poster+Unavailable"
+
+
+try:
+
+    movies, movie_vectors = load_ml_assets()
+
     st.sidebar.success("🟢 AI Engine Online")
 
 except Exception as e:
+
     st.error(
         f"""
         ### ❌ Model Loading Error
 
         {e}
 
-        Make sure these files are in the same folder as `app.py`:
+        Make sure these files are available:
 
-        - `movie_list.pkl`
-        - `cv_tuned.pkl`
+        - movie_list.pkl
+        - cv_tuned.pkl
         """
     )
+
     st.stop()
 
+
 with st.sidebar:
+
     st.markdown("## 🎬 CineMatch")
+
     st.caption("AI Movie Recommendation Engine")
 
     st.divider()
@@ -293,16 +231,25 @@ with st.sidebar:
 
     st.markdown("### 🧠 Model Information")
 
-    st.write(f"🎞️ Movies: **{len(movies):,}**")
-    st.write(f"🔢 Features: **{movie_vectors.shape[1]:,}**")
-    st.write("🤖 Model: **CountVectorizer + Cosine Similarity**")
+    st.write(
+        f"🎞️ Movies: **{len(movies):,}**"
+    )
+
+    st.write(
+        f"🔢 Features: **{movie_vectors.shape[1]:,}**"
+    )
+
+    st.write(
+        "🤖 Model: **CountVectorizer + Cosine Similarity**"
+    )
 
     st.divider()
 
     st.caption(
-        "CineMatch recommends movies based on similarity between "
-        "movie metadata/tags."
+        "CineMatch recommends movies based on similarity "
+        "between movie metadata and tags."
     )
+
 
 st.markdown(
     '<div class="main-title">🎬 Cine<span>Match</span> AI</div>',
@@ -316,8 +263,10 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+
 st.markdown("""
 <div class="hero">
+
     <div class="hero-title">
         🍿 Find your next favorite movie
     </div>
@@ -326,13 +275,16 @@ st.markdown("""
         Select a movie you enjoyed and let CineMatch analyze
         thousands of movie profiles to find the closest matches.
     </div>
+
 </div>
 """, unsafe_allow_html=True)
+
 
 st.markdown(
     '<div class="section-title">🔎 What did you enjoy?</div>',
     unsafe_allow_html=True
 )
+
 
 selected_movie = st.selectbox(
     "Select a movie",
@@ -341,18 +293,29 @@ selected_movie = st.selectbox(
     label_visibility="collapsed"
 )
 
+
 generate = st.button(
     "✨ Find Similar Movies",
     type="primary",
     use_container_width=True
 )
 
+
 if generate:
+
     with st.spinner("🧠 Analyzing movie similarity..."):
+
         try:
-            movie_index = movies.index[
+
+            movie_matches = movies.index[
                 movies["title"] == selected_movie
-            ][0]
+            ].tolist()
+
+            if not movie_matches:
+                st.error("Movie not found.")
+                st.stop()
+
+            movie_index = movie_matches[0]
 
             selected_vector = movie_vectors[movie_index]
 
@@ -368,10 +331,13 @@ if generate:
             recommendations = []
 
             for idx in top_indices:
+
                 recommendations.append({
                     "title": movies.iloc[idx]["title"],
+                    "movie_id": movies.iloc[idx]["movie_id"],
                     "score": similarity_scores[idx]
                 })
+
 
             st.markdown(
                 f'<div class="section-title">'
@@ -380,15 +346,29 @@ if generate:
                 unsafe_allow_html=True
             )
 
+
             columns = st.columns(3)
 
+
             for rank, movie in enumerate(recommendations):
+
                 score_percentage = movie["score"] * 100
 
+                poster = fetch_poster(
+                    movie["movie_id"]
+                )
+
                 with columns[rank % 3]:
+
+                    st.image(
+                        poster,
+                        use_container_width=True
+                    )
+
                     st.markdown(
                         f"""
                         <div class="movie-card">
+
                             <div class="rank">
                                 #{rank + 1} Recommendation
                             </div>
@@ -398,23 +378,29 @@ if generate:
                             </div>
 
                             <div class="score">
-                                Match Score: {score_percentage:.1f}%
+                                Similarity Score:
+                                {score_percentage:.1f}%
                             </div>
 
                             <div class="score-bar">
+
                                 <div style="
                                     width:{min(score_percentage, 100)}%;
                                     height:6px;
                                     border-radius:10px;
                                     background:#00d4aa;
                                 "></div>
+
                             </div>
+
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
 
+
             st.divider()
+
 
             st.markdown(
                 '<div class="section-title">'
@@ -423,41 +409,56 @@ if generate:
                 unsafe_allow_html=True
             )
 
+
             col1, col2, col3, col4 = st.columns(4)
 
+
             with col1:
+
                 st.metric(
                     "Movies Analyzed",
                     f"{len(movies):,}"
                 )
 
+
             with col2:
+
                 st.metric(
                     "Features",
                     f"{movie_vectors.shape[1]:,}"
                 )
 
+
             with col3:
+
                 st.metric(
                     "Recommendations",
                     num_recs
                 )
 
+
             with col4:
+
                 avg_score = sum(
                     movie["score"]
                     for movie in recommendations
                 ) / len(recommendations)
 
                 st.metric(
-                    "Average Match",
+                    "Average Similarity",
                     f"{avg_score * 100:.1f}%"
                 )
 
+
         except Exception as e:
-            st.error(f"❌ Recommendation engine error: {e}")
+
+            st.error(
+                f"❌ Recommendation engine error: {e}"
+            )
+
 
 st.markdown("<br><br>", unsafe_allow_html=True)
+
 
 st.markdown(
     """
