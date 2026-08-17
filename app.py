@@ -365,39 +365,30 @@ if generate:
                         use_container_width=True
                     )
 
-                    st.markdown(
-                        f"""
-                        <div class="movie-card">
+                   card_html = f"""
+<div class="movie-card">
+    <div class="rank">#{rank + 1} Recommendation</div>
 
-                            <div class="rank">
-                                #{rank + 1} Recommendation
-                            </div>
+    <div class="movie-title">
+        {movie["title"]}
+    </div>
 
-                            <div class="movie-title">
-                                {movie["title"]}
-                            </div>
+    <div class="score">
+        Similarity Score: {score_percentage:.1f}%
+    </div>
 
-                            <div class="score">
-                                Similarity Score:
-                                {score_percentage:.1f}%
-                            </div>
+    <div class="score-bar">
+        <div style="
+            width: {min(score_percentage, 100)}%;
+            height: 6px;
+            border-radius: 10px;
+            background: #00d4aa;
+        "></div>
+    </div>
+</div>
+"""
 
-                            <div class="score-bar">
-
-                                <div style="
-                                    width:{min(score_percentage, 100)}%;
-                                    height:6px;
-                                    border-radius:10px;
-                                    background:#00d4aa;
-                                "></div>
-
-                            </div>
-
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-
+st.markdown(card_html, unsafe_allow_html=True)
 
             st.divider()
 
